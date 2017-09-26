@@ -5,6 +5,7 @@ using Twilio.Types;
 using Twilio.Rest.Api.V2010.Account.AvailablePhoneNumberCountry;
 using System.Linq;
 using System.Collections.Generic;
+using Twilio.Rest.Api.V2010.Account.Usage.Record;
 
 namespace TwilioCore
 {
@@ -12,50 +13,47 @@ namespace TwilioCore
     {
         static void Main(string[] args)
         {
-            var accountSid = "ACe7e0c1962bd0b623d06cc2d7a53dbee4";
-            var authToken = "dc36a7e1d2ed6dca2f56c36f6c5f2c74";
-            var phoneNumber = "15005550006";
-            var fromNumber = "15005550006";
-            var sms = "Vhere is the money Lebowski??";
+            var accountSid = "account_sid_here";
+            var authToken = "auth_token_here";
+
+            //var phoneNumber = "15005550006";
+            //var fromNumber = "15005550006";
+            //var sms = "Vhere is the money Lebowski??";
 
             var twilioService = new TwilioService(accountSid, authToken);
 
             Console.WriteLine($"Twilio Account SID: {twilioService.AccountSid}");
             Console.WriteLine($"Twilio Authorization Token: {twilioService.AuthToken}");
 
-            Console.WriteLine("Creating phone number...");
-            Console.WriteLine();
-            var number = twilioService.CreateNumber(phoneNumber);
+            //Console.WriteLine("Creating phone number...\r\n");
+            //var incomingNumberResource = twilioService.CreateNumber(phoneNumber);
 
-            if (number != null)
-            {
-                Console.WriteLine($"SID: {number.Sid}");
-                Console.WriteLine($"Date Created: {number.DateCreated}");
-                Console.WriteLine($"Date Updated: {number.DateUpdated}");
-                Console.WriteLine($"Friendly Name: {number.FriendlyName}");
-                Console.WriteLine($"Account Sid: {number.AccountSid}");
-                Console.WriteLine($"Phone Number: {number.PhoneNumber}");
-                Console.WriteLine($"API Version: {number.ApiVersion}");
-                Console.WriteLine($"Voice Caller ID Lookup: {number.VoiceCallerIdLookup}");
-                Console.WriteLine($"Voice URL: {number.VoiceUrl}");
-                Console.WriteLine($"Voice Method: {number.VoiceMethod}");
-                Console.WriteLine($"Voice Fallback Url: {number.VoiceFallbackUrl}");
-                Console.WriteLine($"Voice Fallback Method: {number.VoiceFallbackMethod}");
-                Console.WriteLine($"Status Callback: {number.StatusCallback}");
-                Console.WriteLine($"Status Callback Method: {number.StatusCallbackMethod}");
-                Console.WriteLine($"Voice Application Sid: {number.VoiceApplicationSid}");
-                Console.WriteLine($"Trunk Sid: {number.TrunkSid}");
-                Console.WriteLine($"SMS URL: {number.SmsUrl}");
-                Console.WriteLine($"SMS Method: {number.SmsMethod}");
-                Console.WriteLine($"Date Created: {number.DateCreated}");
-                Console.WriteLine();
-            }
+            //if (fromNumber != null)
+            //{
+            //    twilioService.ReadIncomingPhoneNumberResource(incomingNumberResource);    
+            //}
             
-            Console.WriteLine("Creating message...");
-            Console.WriteLine();
-            twilioService.CreateMessage(phoneNumber, fromNumber, sms);
+            //Console.WriteLine("Creating message...\r\n");
+            //twilioService.CreateMessage(phoneNumber, fromNumber, sms);
 
-            twilioService.GetMessages();
+            //twilioService.GetMessages();
+
+            var countryCode = "US";
+            var areaCode = 918;
+
+            var localResources = twilioService.GetAvailableNumbers(countryCode, areaCode);
+            twilioService.ReadLocalResources(localResources);
+
+            twilioService.GetMobileNumbers();
+
+            //var callbackUrlString = "http://www.example.com/";
+            //var triggerSid = twilioService.CreateTrigger(callbackUrlString);
+
+            var allTimeResources = twilioService.Usage();
+            twilioService.ReadUsages(allTimeResources);
+            
+            var incomingPhoneNumberResources = twilioService.GetIncomingPhoneNumberResources();
+            twilioService.ReadIncomingPhoneNumberResources(incomingPhoneNumberResources);
 
             Console.ReadKey();
         }
@@ -122,17 +120,37 @@ namespace TwilioCore
             }
         }
 
-        public IEnumerable<LocalResource> AvailableNumbers()
+        public IEnumerable<LocalResource> GetAvailableNumbers(string countryCode, int areaCode)
         {
-            var localAvailableNumbers = LocalResource.Read("US", areaCode: 510);
+            return LocalResource.Read(countryCode, areaCode: areaCode, mmsEnabled: true);
+        }
 
-            foreach(var number in localAvailableNumbers)
+        public void ReadLocalResources(IEnumerable<LocalResource> localResources)
+        {
+            Console.WriteLine($"Available numbers: {localResources.Count()}");
+
+			foreach (var localResource in localResources)
+			{
+				Console.WriteLine($"\r\nFriendly Name: {localResource.FriendlyName}");
+				Console.WriteLine($"Phone Number: {localResource.PhoneNumber}");
+                Console.WriteLine($"Locality: {localResource.Locality}");
+				Console.WriteLine($"Rate Center: {localResource.RateCenter}");
+				Console.WriteLine($"State : {localResource.Region}");
+				Console.WriteLine($"Postal Code: {localResource.PostalCode}");
+                Console.WriteLine($"MMS Enables: {localResource.Capabilities.Mms}\r\n");
+			}
+        }
+
+        public void GetMobileNumbers()
+        {
+            try
             {
-                Console.WriteLine($"Available number: {number}");
-                break;
+                IEnumerable<MobileResource> mobileResources = MobileResource.Read("US", areaCode: 918);
             }
-
-            return localAvailableNumbers;
+            catch (Twilio.Exceptions.ApiException ex)
+            {
+                Console.WriteLine($"ERROR: {ex.Message}");
+            }
         }
 
         public void GetMessages()
@@ -143,6 +161,77 @@ namespace TwilioCore
             {
                 Console.WriteLine($"Reading message...: {message.Body}");
             }
+        }
+
+        public void Triggers()
+        {
+            var temp = Twilio.Rest.Api.V2010.Account.Usage.TriggerResource.Read();
+        }
+
+        public string CreateTrigger(string callbackUrlString)
+        {
+			var callbackUrl = new Uri(callbackUrlString);
+			const string triggerValue = "1000";
+			var trigger = Twilio.Rest.Api.V2010.Account.Usage.TriggerResource.Create(callbackUrl,
+												 triggerValue,
+												 Twilio.Rest.Api.V2010.Account.Usage.TriggerResource.UsageCategoryEnum.Sms);
+
+            return trigger.Sid;
+        }
+
+        public IEnumerable<AllTimeResource> Usage()
+        {
+            return AllTimeResource.Read();
+        }
+
+        public void ReadUsages(IEnumerable<AllTimeResource> resources)
+        {
+            Console.WriteLine($"\r\nAll Time Resources: {resources.Count()}\r\n");
+
+            foreach (var resource in resources)
+            {
+				if (resource.Category == AllTimeResource.CategoryEnum.Calls
+					|| resource.Category == AllTimeResource.CategoryEnum.CallsInboundLocal
+					|| resource.Category == AllTimeResource.CategoryEnum.SmsInboundLongcode
+					|| resource.Category == AllTimeResource.CategoryEnum.Sms
+					|| resource.Category == AllTimeResource.CategoryEnum.Totalprice
+					|| resource.Category == AllTimeResource.CategoryEnum.PhonenumbersLocal
+					|| resource.Category == AllTimeResource.CategoryEnum.Phonenumbers
+					|| resource.Category == AllTimeResource.CategoryEnum.CallsInbound
+					|| resource.Category == AllTimeResource.CategoryEnum.SmsInbound
+					|| resource.Category == AllTimeResource.CategoryEnum.SmsOutbound
+					|| resource.Category == AllTimeResource.CategoryEnum.SmsOutboundLongcode)
+				{
+					Console.WriteLine($"\r\nDescription: {resource.Description}");
+					Console.WriteLine($"Category: {resource.Category}");
+					Console.WriteLine($"Count: {resource.Count}");
+					Console.WriteLine($"Price: {resource.Price}");
+					Console.WriteLine($"Usage: {resource.Usage}\r\n");
+				}
+            }
+        }
+
+        public IEnumerable<IncomingPhoneNumberResource> GetIncomingPhoneNumberResources()
+        {
+            return IncomingPhoneNumberResource.Read();
+        }
+
+        public void ReadIncomingPhoneNumberResources(IEnumerable<IncomingPhoneNumberResource> resources)
+        {
+            Console.WriteLine($"\r\nTotal Incoming Phone Number Resources: {resources.Count()}\r\n");
+
+            foreach (var resource in resources)
+            {
+                ReadIncomingPhoneNumberResource(resource);
+            }
+        }
+
+        public void ReadIncomingPhoneNumberResource(IncomingPhoneNumberResource resource)
+        {
+			Console.WriteLine($"\r\nAccount SID: {resource.AccountSid}");
+			Console.WriteLine($"SID: {resource.Sid}");
+			Console.WriteLine($"Friendly Name: {resource.FriendlyName}");
+			Console.WriteLine($"Phone Number: {resource.PhoneNumber}\r\n");
         }
     }
 }
